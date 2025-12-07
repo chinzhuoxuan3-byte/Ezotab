@@ -1,0 +1,436 @@
+-- 【Basalt Ultimate Miner - 手机终极适配版 v2.1】
+-- 新增：手机完美适配 + 每次打开自动拉回屏幕内 + 横竖屏实时适配
+
+local player = game.Players.LocalPlayer
+local ts = game:GetService("TweenService")
+local rs = game:GetService("ReplicatedStorage")
+local uis = game:GetService("UserInputService")
+
+local mining = false
+local circling = false
+local circleAngle = 0
+local circleRadius = 4.5
+local miningSpeedValue = 15
+
+local oreTypes = {Rock = true, Core = false, Vein = false}
+
+local sg = Instance.new("ScreenGui")
+sg.ResetOnSpawn = false
+sg.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+sg.Parent = player:WaitForChild("PlayerGui")
+
+-- ==================== 主界面 ====================
+local main = Instance.new("Frame", sg)
+main.Size = UDim2.new(0, 380, 0, 320)
+main.Position = UDim2.new(1, -20, 1, -20)        -- 手机安全位置
+main.AnchorPoint = Vector2.new(1, 1)
+main.BackgroundColor3 = Color3.fromRGB(20,20,25)
+main.BorderSizePixel = 0
+main.Visible = false
+main.Active = true
+Instance.new("UICorner", main).CornerRadius = UDim.new(0,16)
+
+local stroke = Instance.new("UIStroke", main)
+stroke.Color = Color3.fromRGB(80,180,255)
+stroke.Thickness = 2
+
+-- 标题栏
+local title = Instance.new("TextLabel", main)
+title.Size = UDim2.new(1,-20,0,40)
+title.Position = UDim2.new(0,10,0,0)
+title.BackgroundTransparency = 1
+title.Text = "⛏️ Basalt Miner"
+title.TextColor3 = Color3.fromRGB(100,200,255)
+title.Font = Enum.Font.GothamBold
+title.TextSize = 20
+title.TextXAlignment = Enum.TextXAlignment.Left
+
+-- 关闭按钮
+local closeBtn = Instance.new("TextButton", main)
+closeBtn.Size = UDim2.new(0,40,0,40)
+closeBtn.Position = UDim2.new(1,-45,0,0)
+closeBtn.BackgroundColor3 = Color3.fromRGB(255,50,50)
+closeBtn.Text = "✕"
+closeBtn.TextColor3 = Color3.new(1,1,1)
+closeBtn.Font = Enum.Font.GothamBold
+closeBtn.TextSize = 24
+closeBtn.BorderSizePixel = 0
+Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0,10)
+
+-- 开关按钮
+local powerBtn = Instance.new("TextButton", main)
+powerBtn.Size = UDim2.new(0,160,0,55)
+powerBtn.Position = UDim2.new(0,15,0,50)
+powerBtn.BackgroundColor3 = Color3.fromRGB(220,0,0)
+powerBtn.Text = "关闭"
+powerBtn.TextColor3 = Color3.new(1,1,1)
+powerBtn.Font = Enum.Font.GothamBold
+powerBtn.TextSize = 24
+powerBtn.BorderSizePixel = 0
+Instance.new("UICorner", powerBtn).CornerRadius = UDim.new(0,12)
+
+-- 状态显示
+local status = Instance.new("TextLabel", main)
+status.Size = UDim2.new(0,190,0,40)
+status.Position = UDim2.new(0,180,0,56)
+status.BackgroundColor3 = Color3.fromRGB(40,40,45)
+status.Text = "空闲"
+status.TextColor3 = Color3.fromRGB(180,255,180)
+status.Font = Enum.Font.GothamBold
+status.TextSize = 16
+status.BorderSizePixel = 0
+Instance.new("UICorner", status).CornerRadius = UDim.new(0,10)
+
+-- 创建开关函数
+local function createToggle(text, y, default)
+	local frame = Instance.new("Frame", main)
+	frame.Size = UDim2.new(0,350,0,38)
+	frame.Position = UDim2.new(0,15,0,y)
+	frame.BackgroundTransparency = 1
+
+	local label = Instance.new("TextLabel", frame)
+	label.Size = UDim2.new(0,200,1,0)
+	label.BackgroundTransparency = 1
+	label.Text = text
+	label.TextColor3 = Color3.new(1,1,1)
+	label.Font = Enum.Font.Gotham
+	label.TextSize = 16
+	label.TextXAlignment = Enum.TextXAlignment.Left
+
+	local btn = Instance.new("TextButton", frame)
+	btn.Size = UDim2.new(0,85,0,34)
+	btn.Position = UDim2.new(1,-90,0,2)
+	btn.BackgroundColor3 = default and Color3.fromRGB(0,200,0) or Color3.fromRGB(70,70,70)
+	btn.Text = default and "开" or "关"
+	btn.TextColor3 = Color3.new(1,1,1)
+	btn.Font = Enum.Font.GothamBold
+	btn.TextSize = 16
+	btn.BorderSizePixel = 0
+	btn.AutoButtonColor = false
+	Instance.new("UICorner", btn).CornerRadius = UDim.new(0,17)
+	return btn
+end
+
+local rockToggle = createToggle("岩石 (Rock)", 115, true)
+local coreToggle = createToggle("核心 (Core)", 155, false)
+local veinToggle = createToggle("矿脉 (Vein)", 195, false)
+local orbitToggle = createToggle("环绕模式", 235, false)
+
+-- 速度标签
+local speedLabel = Instance.new("TextLabel", main)
+speedLabel.Size = UDim2.new(0,350,0,22)
+speedLabel.Position = UDim2.new(0,15,0,275)
+speedLabel.BackgroundTransparency = 1
+speedLabel.Text = "速度: 15 (快速)"
+speedLabel.TextColor3 = Color3.fromRGB(150,200,255)
+speedLabel.Font = Enum.Font.Gotham
+speedLabel.TextSize = 15
+speedLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+-- 滑块
+local sliderContainer = Instance.new("Frame", main)
+sliderContainer.Size = UDim2.new(0,350,0,50)
+sliderContainer.Position = UDim2.new(0,15,0,295)
+sliderContainer.BackgroundTransparency = 1
+
+local slider = Instance.new("Frame", sliderContainer)
+slider.Size = UDim2.new(1,0,0,28)
+slider.Position = UDim2.new(0,0,0,11)
+slider.BackgroundColor3 = Color3.fromRGB(50,50,55)
+slider.BorderSizePixel = 0
+Instance.new("UICorner", slider).CornerRadius = UDim.new(1,0)
+
+local fill = Instance.new("Frame", slider)
+fill.Size = UDim2.new(0.25,0,1,0)
+fill.BackgroundColor3 = Color3.fromRGB(100,255,0)
+fill.BorderSizePixel = 0
+Instance.new("UICorner", fill).CornerRadius = UDim.new(1,0)
+
+local knob = Instance.new("TextButton", slider)
+knob.Size = UDim2.new(0,45,0,45)
+knob.Position = UDim2.new(0.25,-22.5,0.5,-22.5)
+knob.BackgroundColor3 = Color3.new(1,1,1)
+knob.Text = ""
+knob.BorderSizePixel = 0
+knob.ZIndex = 3
+knob.AutoButtonColor = false
+Instance.new("UICorner", knob).CornerRadius = UDim.new(1,0)
+
+local knobShadow = Instance.new("UIStroke", knob)
+knobShadow.Color = Color3.fromRGB(80,180,255)
+knobShadow.Thickness = 3
+
+-- ==================== 手机完美适配：自动拉回屏幕内 ====================
+local function clampFrameToScreen()
+	local screenSize = workspace.CurrentCamera.ViewportSize
+	local guiSize = main.AbsoluteSize
+	local maxX = screenSize.X - guiSize.X - 20
+	local maxY = screenSize.Y - guiSize.Y - 20
+	local pos = main.Position
+	local clampedX = math.clamp(pos.X.Offset, 20, maxX)
+	local clampedY = math.clamp(pos.Y.Offset, 20, maxY)
+	main.Position = UDim2.new(pos.X.Scale, clampedX, pos.Y.Scale, clampedY)
+end
+
+-- 横竖屏切换自动适配
+workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+	if main.Visible then
+		clampFrameToScreen()
+	end
+end)
+
+-- ==================== 拖动系统（仅标题栏） ====================
+local dragging = false
+local dragStart = nil
+local startPos = nil
+
+local dragArea = Instance.new("Frame", main)
+dragArea.Size = UDim2.new(1,-50,0,40)
+dragArea.Position = UDim2.new(0,0,0,0)
+dragArea.BackgroundTransparency = 1
+dragArea.ZIndex = 2
+
+dragArea.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		dragging = true
+		dragStart = input.Position
+		startPos = main.Position
+	end
+end)
+
+uis.InputChanged:Connect(function(input)
+	if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+		local delta = input.Position - dragStart
+		main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+	end
+end)
+
+uis.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		dragging = false
+	end
+end)
+
+-- ==================== 速度滑块 ====================
+local sliding = false
+local function getPercent(pos)
+	local x = pos.X - slider.AbsolutePosition.X
+	local width = slider.AbsoluteSize.X
+	return math.clamp(x / width, 0, 1)
+end
+
+local function updateSpeedUI()
+	local percent = miningSpeedValue / 60
+	fill.Size = UDim2.new(percent,0,1,0)
+	knob.Position = UDim2.new(percent,-22.5,0.5,-22.5)
+	local speedText = miningSpeedValue <= 10 and "极快" or miningSpeedValue <= 25 and "快速" or miningSpeedValue <= 40 and "中速" or "慢速"
+	local color = miningSpeedValue <= 10 and Color3.fromRGB(0,255,0) or miningSpeedValue <= 25 and Color3.fromRGB(100,255,0) or miningSpeedValue <= 40 and Color3.fromRGB(255,200,0) or Color3.fromRGB(255,100,100)
+	fill.BackgroundColor3 = color
+	speedLabel.Text = "速度: "..miningSpeedValue.." ("..speedText..")"
+end
+
+sliderContainer.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		sliding = true
+		local p = getPercent(input.Position)
+		miningSpeedValue = math.floor(p * 60)
+		updateSpeedUI()
+	end
+end)
+
+knob.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		sliding = true
+	end
+end)
+
+uis.InputChanged:Connect(function(input)
+	if sliding and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+		local p = getPercent(input.Position)
+		miningSpeedValue = math.floor(p * 60)
+		updateSpeedUI()
+	end
+end)
+
+uis.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		sliding = false
+	end
+end)
+
+updateSpeedUI()
+
+-- ==================== 核心功能 ====================
+local currentTween = nil
+local miningTask = nil
+
+local function stopAllActions()
+	mining = false
+	if miningTask then task.cancel(miningTask); miningTask = nil end
+	if currentTween then currentTween:Cancel(); currentTween = nil end
+	status.Text = "已停止"
+	status.TextColor3 = Color3.fromRGB(255,100,100)
+	task.wait(1)
+	status.Text = "空闲"
+	status.TextColor3 = Color3.fromRGB(180,255,180)
+end
+
+powerBtn.MouseButton1Click:Connect(function()
+	if mining then
+		powerBtn.BackgroundColor3 = Color3.fromRGB(220,0,0)
+		powerBtn.Text = "关闭"
+		stopAllActions()
+	else
+		mining = true
+		powerBtn.BackgroundColor3 = Color3.fromRGB(0,200,0)
+		powerBtn.Text = "开启"
+		status.Text = "挖矿中..."
+		status.TextColor3 = Color3.fromRGB(100,255,100)
+
+		if miningTask then task.cancel(miningTask) end
+		miningTask = task.spawn(function()
+			while mining do
+				mineOre()
+				if not mining then break end
+				task.wait(0.1)
+			end
+		end)
+	end
+end)
+
+local function toggle(btn, key)
+	btn.MouseButton1Click:Connect(function()
+		if key == "orbit" then
+			circling = not circling
+			if circling then circleAngle = 0 end
+		else
+			oreTypes[key] = not oreTypes[key]
+		end
+		local isOn = (key=="orbit" and circling or oreTypes[key])
+		btn.BackgroundColor3 = isOn and Color3.fromRGB(0,200,0) or Color3.fromRGB(70,70,70)
+		btn.Text = isOn and "开" or "关"
+	end)
+end
+toggle(rockToggle, "Rock")
+toggle(coreToggle, "Core")
+toggle(veinToggle, "Vein")
+toggle(orbitToggle, "orbit")
+
+local function fly(cf)
+	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+	if not root or not mining then return false end
+	if currentTween then currentTween:Cancel(); currentTween = nil end
+	local dist = (root.Position - cf.Position).Magnitude
+	local info = TweenInfo.new(math.max(dist/80, 0.6), Enum.EasingStyle.Sine)
+	currentTween = ts:Create(root, info, {CFrame = cf})
+	currentTween:Play()
+	local completed = false
+	local conn = currentTween.Completed:Connect(function() completed = true; currentTween = nil end)
+	while not completed and mining do task.wait(0.05) end
+	conn:Disconnect()
+	if not mining and currentTween then currentTween:Cancel(); currentTween = nil; return false end
+	return mining
+end
+
+local function isValid(ore)
+	if not ore or not ore.Parent then return false end
+	local h = ore:FindFirstChild("Health")
+	if h and h:IsA("NumberValue") then return h.Value > 0 end
+	local ah = ore:GetAttribute("Health")
+	if ah ~= nil then return ah > 0 end
+	return false
+end
+
+local function findNearest()
+	local best, bestDist = nil, math.huge
+	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+	if not root then return end
+	for _, v in workspace:GetDescendants() do
+		if v.Name:match("Basalt") and isValid(v) then
+			local match = false
+			if v.Name:match("Rock") and oreTypes.Rock then match = true end
+			if v.Name:match("Core") and oreTypes.Core then match = true end
+			if v.Name:match("Vein") and oreTypes.Vein then match = true end
+			if match then
+				local d = (root.Position - v:GetPivot().Position).Magnitude
+				if d < bestDist then best, bestDist = v, d end
+			end
+		end
+	end
+	return best
+end
+
+function mineOre()
+	if not mining then return end
+	local ore = findNearest()
+	if not ore then
+		status.Text = "未找到"
+		task.wait(2)
+		return
+	end
+
+	status.Text = "飞行中..."
+	local flySuccess = fly(ore:GetPivot() * CFrame.new(0,6,0))
+	if not flySuccess or not mining then return end
+
+	status.Text = "挖掘中..."
+	local oreCenter = ore:GetPivot().Position
+
+	while mining and isValid(ore) do
+		pcall(function()
+			rs.Shared.Packages.Knit.Services.ToolService.RF.ToolActivated:InvokeServer("Pickaxe")
+		end)
+
+		if circling then
+			circleAngle += math.rad(45)
+			local offset = Vector3.new(math.sin(circleAngle)*circleRadius, 6, math.cos(circleAngle)*circleRadius)
+			local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+			if root then
+				root.CFrame = CFrame.lookAt(oreCenter + offset, oreCenter)
+			end
+		else
+			local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+			if root then
+				root.CFrame = CFrame.lookAt(root.Position, oreCenter)
+			end
+		end
+
+		local actualDelay = 0.05 + (miningSpeedValue / 60) * 0.95
+		task.wait(actualDelay)
+	end
+end
+
+-- ==================== 显示/隐藏按钮 ====================
+local miniBtn = Instance.new("TextButton", sg)
+miniBtn.Size = UDim2.new(0, 65, 0, 65)
+miniBtn.Position = UDim2.new(1, -80, 1, -80)
+miniBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+miniBtn.Text = "⛏️"
+miniBtn.TextColor3 = Color3.new(1, 1, 1)
+miniBtn.Font = Enum.Font.GothamBold
+miniBtn.TextSize = 35
+miniBtn.ZIndex = 100
+miniBtn.BorderSizePixel = 0
+miniBtn.AutoButtonColor = false
+Instance.new("UICorner", miniBtn).CornerRadius = UDim.new(1, 0)
+local miniStroke = Instance.new("UIStroke", miniBtn)
+miniStroke.Color = Color3.new(1, 1, 1)
+miniStroke.Thickness = 3
+
+-- 关键：每次打开都自动拉回屏幕内
+miniBtn.MouseButton1Click:Connect(function()
+	main.Visible = not main.Visible
+	miniBtn.Text = main.Visible and "✕" or "⛏️"
+	if main.Visible then
+		clampFrameToScreen()  -- 保证永远在屏幕内
+	end
+end)
+
+closeBtn.MouseButton1Click:Connect(function()
+	main.Visible = false
+	miniBtn.Text = "⛏️"
+end)
+
+print("✅ Basalt Ultimate Miner v2.1 加载成功！")
+print("手机完美适配 | 界面永不超出屏幕 | 横竖屏自动调整")
+print("点击右下角 ⛏️ 打开菜单")
